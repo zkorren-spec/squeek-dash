@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Squeek Dash — Cheese Run</title>
+<meta name="description" content="A tiny browser game powered by Squeektoshi's real wheel. Cheese falls only while the hamster runs — live from the Squeekchain API.">
+<meta name="squeek-dash" content="community project for the Squeekchain Buildooooor badge">
+<!-- GENESIS VERIFICATION TAG: inserted here during Genesis submission -->
+<style>
+  :root{
+    --bg:#17130d; --panel:#221a10; --panel2:#2b2113; --ink:#f5e9d3; --dim:#b9a888;
+    --amber:#f5a623; --amber2:#ffcf5c; --red:#e5533d; --green:#7bc96f; --line:#3a2d18;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.45}
+  .wrap{max-width:520px; margin:0 auto; padding:16px 14px 40px}
+  header{display:flex; align-items:center; gap:10px; margin:6px 0 2px}
+  #wheel{font-size:34px; line-height:1; display:inline-block; will-change:transform}
+  h1{font-size:26px; margin:0; letter-spacing:.5px}
+  h1 .dash{color:var(--amber)}
+  .tag{color:var(--dim); margin:2px 0 12px; font-size:14px}
+  #feedBadge{display:inline-block; font-size:12.5px; font-weight:700; padding:4px 10px;
+    border-radius:999px; border:1px solid var(--line); background:var(--panel); margin-bottom:10px}
+  #feedBadge.live{color:var(--green)} #feedBadge.nap{color:var(--amber2)} #feedBadge.down{color:var(--red)}
+  .hud{display:flex; gap:8px; margin-bottom:8px}
+  .hud .cell{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:6px 10px; text-align:center}
+  .hud .k{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em}
+  .hud .v{font-size:19px; font-weight:800}
+  #stage{position:relative; border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    background:linear-gradient(#241b0f,#1a1409)}
+  canvas{display:block; width:100%; height:auto; touch-action:none}
+  .overlay{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; padding:22px; background:rgba(16,12,6,.82); gap:10px}
+  .overlay h2{margin:0; font-size:24px}
+  .overlay p{margin:0; color:var(--dim); font-size:14.5px; max-width:400px}
+  .overlay .big{font-size:17px; color:var(--ink)}
+  button{cursor:pointer; border:0; border-radius:999px; background:var(--amber); color:#241a05;
+    font-weight:800; font-size:17px; padding:13px 30px; min-height:48px}
+  button:active{transform:translateY(1px)}
+  .hidden{display:none !important}
+  #banner{position:absolute; left:50%; transform:translateX(-50%); bottom:12px; white-space:nowrap;
+    background:rgba(16,12,6,.85); border:1px solid var(--line); color:var(--amber2);
+    font-size:13.5px; padding:6px 14px; border-radius:999px}
+  .strip{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+  .strip .cell{flex:1 1 30%; background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:6px 10px; text-align:center}
+  .strip .k{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em}
+  .strip .v{font-size:16px; font-weight:700}
+  section{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-top:14px}
+  section h3{margin:0 0 8px; font-size:17px}
+  section p, section li{font-size:14.5px; color:var(--ink)}
+  section ul{margin:6px 0; padding-left:20px}
+  a{color:var(--amber2)}
+  footer{color:var(--dim); font-size:12.5px; text-align:center; margin-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span id="wheel" aria-hidden="true">🛞</span>
+    <div>
+      <h1>SQUEEK <span class="dash">DASH</span> 🧀</h1>
+      <p class="tag">Cheese Run — a game powered by a real hamster.</p>
+    </div>
+  </header>
+
+  <div id="feedBadge" class="nap">⏳ Connecting to the wheel…</div>
+
+  <div class="hud">
+    <div class="cell"><div class="k">Score</div><div class="v" id="hudScore">0</div></div>
+    <div class="cell"><div class="k">Combo</div><div class="v" id="hudCombo">×0</div></div>
+    <div class="cell"><div class="k">Crumbs</div><div class="v" id="hudLives">🍪🍪🍪</div></div>
+    <div class="cell"><div class="k">Best</div><div class="v" id="hudBest">0</div></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" width="480" height="600"></canvas>
+    <div id="banner" class="hidden"></div>
+    <div class="overlay" id="startOverlay">
+      <h2>🧀 Cheese falls only while he runs</h2>
+      <p>Squeek Dash reads Squeektoshi's wheel <b>live</b> from the Squeekchain API.
+         His real speed sets how fast the cheese falls, his RPM sets the tempo —
+         and when he naps, the cheese stops. No pressure, little guy.</p>
+      <p class="big">Move with mouse, touch, or ← → keys.<br>Catch cheese. Don't drop three.</p>
+      <button id="startBtn">Start catching</button>
+      <p id="startFeedNote">Waiting for the live feed…</p>
+    </div>
+    <div class="overlay hidden" id="overOverlay">
+      <h2>Out of crumbs!</h2>
+      <p class="big">Score <b id="finalScore">0</b> · Caught <b id="finalCaught">0</b> cheese</p>
+      <p id="finalHamster"></p>
+      <button id="againBtn">Play again</button>
+    </div>
+  </div>
+
+  <div class="strip" aria-label="Live Squeekchain data">
+    <div class="cell"><div class="k">Wheel</div><div class="v" id="stWheel">—</div></div>
+    <div class="cell"><div class="k">His speed</div><div class="v" id="stSpeed">—</div></div>
+    <div class="cell"><div class="k">His RPM</div><div class="v" id="stRpm">—</div></div>
+    <div class="cell"><div class="k">Block</div><div class="v" id="stBlock">—</div></div>
+    <div class="cell"><div class="k">Round settled</div><div class="v" id="stRound">—</div></div>
+    <div class="cell"><div class="k">His distance</div><div class="v" id="stDist">—</div></div>
+  </div>
+
+  <section>
+    <h3>How Squeekchain powers this game</h3>
+    <ul>
+      <li>Every ~2 seconds the game polls the public API at <code>api.squeekchain.com/v1/status</code> — the same feed the official site uses.</li>
+      <li><b>Gameplay is gated by the real wheel:</b> cheese spawns only while <code>coreStatus</code> says Squeektoshi is running.</li>
+      <li>His <code>speedMmPerSecond</code> becomes the falling speed; his <code>rpmMilli</code> becomes the spawn tempo — and spins the wheel icon above at his true RPM.</li>
+      <li>The strip under the game shows his settled block, round and lifetime distance, straight from the same response.</li>
+      <li>If the feed is unreachable or stale, the game says so and pauses. It never fakes live data.</li>
+    </ul>
+    <p>Squeek Dash is a community project for the Squeekchain Buildooooor badge.
+       It is not affiliated with or endorsed by the Squeekchain team. No wallet,
+       no tokens, no transactions — Squeekchain is a Sepolia testnet project and
+       nothing here has monetary value.</p>
+    <p>Links: <a href="https://squeekchain.com">squeekchain.com</a> ·
+       <a href="https://squeekchain.com/genesis/code">Genesis — Code</a> ·
+       <a href="https://docs.squeekchain.com">Docs</a></p>
+  </section>
+
+  <footer>Squeek Dash · built on the public Squeekchain API · data: api.squeekchain.com</footer>
+</div>
+
+<script>
+"use strict";
+const API = "https://api.squeekchain.com/v1/status";
+const $ = id => document.getElementById(id);
+
+/* ---------- Live feed ---------- */
+const feed = { ok:false, stale:false, running:false, rpm:0, speed:0,
+               speedSmooth:0, block:"—", round:"—", distanceMm:0, lastOk:0 };
+
+async function poll(){
+  try{
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), 6000);
+    const r = await fetch(API, {signal: ctl.signal, cache:"no-store"});
+    clearTimeout(t);
+    if(!r.ok) throw new Error("http "+r.status);
+    const d = await r.json();
+    const m = d.measurement || {};
+    const anchor = (d.builder && d.builder.anchor) || {};
+    feed.ok = true; feed.lastOk = Date.now();
+    const observed = Date.parse(m.observedAt || d.generatedAt || "") || Date.now();
+    feed.stale = (Date.now() - observed) > 150000 || m.freshness === "stale";
+    feed.running = !feed.stale && String(m.coreStatus||"").toUpperCase() !== "IDLE";
+    feed.rpm = (Number(m.rpmMilli)||0)/1000;
+    feed.speed = Number(m.speedMmPerSecond)||0;
+    feed.speedSmooth = feed.speedSmooth ? feed.speedSmooth*0.55 + feed.speed*0.45 : feed.speed;
+    feed.block = anchor.blockHeight != null ? String(anchor.blockHeight) : "—";
+    feed.round = anchor.settledThroughRound != null ? String(anchor.settledThroughRound) : "—";
+    feed.distanceMm = Number(m.distanceMm)||0;
+  }catch(e){
+    feed.ok = false;
+  }
+  renderFeed();
+}
+function feedState(){
+  if(!feed.ok && !feed.lastOk) return "down";
+  if(!feed.ok) return "down";
+  if(feed.stale) return "down";
+  return feed.running ? "live" : "nap";
+}
+function renderFeed(){
+  const b = $("feedBadge"), s = feedState();
+  if(s==="live"){ b.className="live"; b.textContent="🟢 LIVE — Squeektoshi is running"; }
+  else if(s==="nap"){ b.className="nap"; b.textContent="💤 Squeektoshi is napping — cheese paused"; }
+  else { b.className="down"; b.textContent="⚠️ Live feed unreachable or stale — game paused"; }
+  $("stWheel").textContent = s==="live" ? "Running" : (s==="nap" ? "Napping" : "—");
+  $("stSpeed").textContent = feed.ok ? (feed.speed/1000).toFixed(2)+" m/s" : "—";
+  $("stRpm").textContent = feed.ok ? feed.rpm.toFixed(1) : "—";
+  $("stBlock").textContent = feed.block;
+  $("stRound").textContent = feed.round;
+  $("stDist").textContent = feed.ok ? (feed.distanceMm/1e6).toFixed(2)+" km" : "—";
+  $("startFeedNote").textContent =
+    s==="live" ? "The wheel is turning right now — good hunting." :
+    s==="nap"  ? "He's asleep at the moment. You can start; cheese falls when he wakes." :
+                 "Can't reach the live feed yet — the game will wait for it honestly.";
+}
+/* spin the wheel icon at his real RPM */
+let wheelAngle = 0, lastSpin = performance.now();
+function spin(now){
+  const dt = (now - lastSpin)/1000; lastSpin = now;
+  if(feedState()==="live"){ wheelAngle = (wheelAngle + feed.rpm*6*dt) % 360; }
+  $("wheel").style.transform = "rotate("+wheelAngle+"deg)";
+  requestAnimationFrame(spin);
+}
+</script>
+<script>
+/* ---------- Game ---------- */
+const cv = $("game"), ctx = cv.getContext("2d");
+const W = cv.width, H = cv.height;
+const PADDLE_Y = H - 56, CATCH_HALF = 46;
+let playing = false, over = false;
+let score = 0, combo = 0, lives = 3, caught = 0;
+let best = Number(localStorage.getItem("squeekDashBest") || 0);
+let playerX = W/2, targetX = W/2;
+let cheeses = [], spawnIn = 0, startDistance = null, lastFrame = performance.now();
+const keys = {};
+$("hudBest").textContent = best;
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function spawnInterval(){ return clamp(1500 - feed.rpm*14, 420, 1500); }
+function fallSpeed(){
+  const base = clamp(110 + feed.speedSmooth*0.16, 110, 460);
+  return base + Math.min(90, score/40);
+}
+function spawnCheese(){
+  const golden = Math.random() < 0.08;
+  cheeses.push({ x: 24 + Math.random()*(W-48), y: -24,
+                 vy: fallSpeed() * (0.85 + Math.random()*0.3),
+                 r: golden ? 15 : 17, golden: golden, dead: false });
+}
+function reset(){
+  score = 0; combo = 0; lives = 3; caught = 0; cheeses = []; spawnIn = 300;
+  startDistance = feed.ok ? feed.distanceMm : null;
+  playerX = targetX = W/2; over = false; hud();
+}
+function hud(){
+  $("hudScore").textContent = score;
+  $("hudCombo").textContent = "×"+combo + (combo >= 8 ? " 🔥" : "");
+  $("hudLives").textContent = lives > 0 ? "🍪".repeat(lives) : "—";
+  $("hudBest").textContent = best;
+}
+function gameOver(){
+  playing = false; over = true;
+  if(score > best){ best = score; localStorage.setItem("squeekDashBest", String(best)); }
+  $("finalScore").textContent = score;
+  $("finalCaught").textContent = caught;
+  let extra = "";
+  if(startDistance != null && feed.ok){
+    const m = Math.max(0, (feed.distanceMm - startDistance)/1000);
+    extra = "While you played, Squeektoshi ran " + m.toFixed(1) + " m on the real wheel.";
+  }
+  $("finalHamster").textContent = extra;
+  hud();
+  $("overOverlay").classList.remove("hidden");
+}
+function step(now){
+  const dt = Math.min(0.05, (now - lastFrame)/1000); lastFrame = now;
+  if(keys.left) targetX -= 430*dt;
+  if(keys.right) targetX += 430*dt;
+  targetX = clamp(targetX, 34, W-34);
+  playerX += (targetX - playerX) * Math.min(1, dt*14);
+  const s = feedState();
+  if(playing && s === "live"){
+    spawnIn -= dt*1000;
+    if(spawnIn <= 0){ spawnCheese(); spawnIn = spawnInterval(); }
+    $("banner").classList.add("hidden");
+  } else if(playing){
+    const b = $("banner");
+    b.textContent = s === "nap" ? "💤 Squeektoshi is napping — cheese resumes when the wheel turns"
+                                : "⚠️ Live feed paused — waiting for the wheel…";
+    b.classList.remove("hidden");
+  }
+  for(const c of cheeses){
+    c.y += c.vy*dt;
+    if(c.y >= PADDLE_Y-14 && c.y <= PADDLE_Y+22 && Math.abs(c.x - playerX) <= CATCH_HALF){
+      c.dead = true; caught++; combo++;
+      score += (c.golden ? 50 : 10) + Math.min(combo, 40);
+    } else if(c.y > H + 26){
+      c.dead = true; combo = 0; lives--;
+    }
+  }
+  cheeses = cheeses.filter(c => !c.dead);
+  if(playing && lives <= 0) gameOver();
+  if(playing) hud();
+  draw();
+  requestAnimationFrame(step);
+}
+function draw(){
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#3a2a12"; ctx.fillRect(0, H-26, W, 26);
+  ctx.fillStyle = "#2c2009"; ctx.fillRect(0, H-26, W, 3);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for(const c of cheeses){
+    ctx.save();
+    if(c.golden){ ctx.shadowColor = "#ffcf5c"; ctx.shadowBlur = 18; }
+    ctx.font = (c.r*2) + "px serif";
+    ctx.fillText("🧀", c.x, c.y);
+    ctx.restore();
+  }
+  ctx.font = "40px serif"; ctx.fillText("🐹", playerX, PADDLE_Y-26);
+  ctx.font = "44px serif"; ctx.fillText("🧺", playerX, PADDLE_Y+6);
+  if(!playing && !over){
+    ctx.fillStyle = "rgba(245,233,211,.75)"; ctx.font = "600 17px system-ui, sans-serif";
+    ctx.fillText("Press Start — then keep up with a hamster.", W/2, H/2);
+  }
+}
+function pointerX(e){
+  const r = cv.getBoundingClientRect();
+  return (e.clientX - r.left) * (W / r.width);
+}
+cv.addEventListener("pointermove", e => { targetX = pointerX(e); });
+cv.addEventListener("pointerdown", e => { targetX = pointerX(e); });
+window.addEventListener("keydown", e => {
+  if(e.key === "ArrowLeft"){ keys.left = true; e.preventDefault(); }
+  if(e.key === "ArrowRight"){ keys.right = true; e.preventDefault(); }
+});
+window.addEventListener("keyup", e => {
+  if(e.key === "ArrowLeft") keys.left = false;
+  if(e.key === "ArrowRight") keys.right = false;
+});
+$("startBtn").addEventListener("click", () => {
+  $("startOverlay").classList.add("hidden");
+  reset(); playing = true;
+});
+$("againBtn").addEventListener("click", () => {
+  $("overOverlay").classList.add("hidden");
+  reset(); playing = true;
+});
+hud(); draw();
+poll(); setInterval(poll, 2000);
+requestAnimationFrame(spin);
+requestAnimationFrame(step);
+</script>
+</body>
+</html>
