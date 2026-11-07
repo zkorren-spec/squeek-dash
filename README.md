@@ -2,6 +2,8 @@
 
 Squeek Dash is a community project for the Squeekchain Buildooooor badge.
 
+![Squeek Dash — Cheese Run](headline.jpg)
+
 A small browser game powered by Squeektoshi's real wheel. Cheese only falls
 while the hamster is actually running: the game polls the public Squeekchain
 API (`https://api.squeekchain.com/v1/status`) and maps his live speed and RPM
