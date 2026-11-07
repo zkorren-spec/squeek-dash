@@ -84,7 +84,8 @@
       <p>Squeek Dash reads Squeektoshi's wheel <b>live</b> from the Squeekchain API.
          His real speed sets how fast the cheese falls, his RPM sets the tempo —
          and when he naps, the cheese stops. No pressure, little guy.</p>
-      <p class="big">Move with mouse, touch, or ← → keys.<br>Catch cheese. Don't drop three.</p>
+      <p class="big">Move with mouse, touch, or ← → keys.<br>Catch cheese. Don't drop three.<br>
+      <span style="font-size:14px">Napping? Dream Mode keeps you playing — practice cheese, no lives lost, scored separately.</span></p>
       <button id="startBtn">Start catching</button>
       <p id="startFeedNote">Waiting for the live feed…</p>
     </div>
@@ -109,7 +110,8 @@
     <h3>How Squeekchain powers this game</h3>
     <ul>
       <li>Every ~2 seconds the game polls the public API at <code>api.squeekchain.com/v1/status</code> — the same feed the official site uses.</li>
-      <li><b>Gameplay is gated by the real wheel:</b> cheese spawns only while <code>coreStatus</code> says Squeektoshi is running.</li>
+      <li><b>Gameplay is gated by the real wheel:</b> live cheese spawns only while <code>coreStatus</code> says Squeektoshi is running.</li>
+      <li>Naps can be long, so during them the game switches to a clearly labelled <b>Dream Mode</b>: translucent practice cheese at a gentle fixed tempo that never pretends to be his wheel. Dream catches are scored separately and missing one costs no life — your real score only ever comes from the real wheel.</li>
       <li>His <code>speedMmPerSecond</code> becomes the falling speed; his <code>rpmMilli</code> becomes the spawn tempo — and spins the wheel icon above at his true RPM.</li>
       <li>The strip under the game shows his settled block, round and lifetime distance, straight from the same response.</li>
       <li>If the feed is unreachable or stale, the game says so and pauses. It never fakes live data.</li>
@@ -201,6 +203,7 @@ let score = 0, combo = 0, lives = 3, caught = 0;
 let best = Number(localStorage.getItem("squeekDashBest") || 0);
 let playerX = W/2, targetX = W/2;
 let cheeses = [], spawnIn = 0, startDistance = null, lastFrame = performance.now();
+let dreamScore = 0, dreamCaught = 0, prevState = "";
 const keys = {};
 $("hudBest").textContent = best;
 
@@ -210,14 +213,16 @@ function fallSpeed(){
   const base = clamp(110 + feed.speedSmooth*0.16, 110, 460);
   return base + Math.min(90, score/40);
 }
-function spawnCheese(){
+function spawnCheese(dream){
   const golden = Math.random() < 0.08;
-  cheeses.push({ x: 24 + Math.random()*(W-48), y: -24,
-                 vy: fallSpeed() * (0.85 + Math.random()*0.3),
-                 r: golden ? 15 : 17, golden: golden, dead: false });
+  const vy = dream ? (145 + Math.min(60, dreamScore/50)) * (0.85 + Math.random()*0.3)
+                   : fallSpeed() * (0.85 + Math.random()*0.3);
+  cheeses.push({ x: 24 + Math.random()*(W-48), y: -24, vy: vy,
+                 r: golden ? 15 : 17, golden: golden, dream: !!dream, dead: false });
 }
 function reset(){
   score = 0; combo = 0; lives = 3; caught = 0; cheeses = []; spawnIn = 300;
+  dreamScore = 0; dreamCaught = 0; prevState = "";
   startDistance = feed.ok ? feed.distanceMm : null;
   playerX = targetX = W/2; over = false; hud();
 }
@@ -237,6 +242,10 @@ function gameOver(){
     const m = Math.max(0, (feed.distanceMm - startDistance)/1000);
     extra = "While you played, Squeektoshi ran " + m.toFixed(1) + " m on the real wheel.";
   }
+  if(dreamCaught > 0){
+    extra += (extra ? " " : "") + "While he napped you caught " + dreamCaught +
+             " dream cheese (dream score " + dreamScore + ").";
+  }
   $("finalHamster").textContent = extra;
   hud();
   $("overOverlay").classList.remove("hidden");
@@ -248,23 +257,32 @@ function step(now){
   targetX = clamp(targetX, 34, W-34);
   playerX += (targetX - playerX) * Math.min(1, dt*14);
   const s = feedState();
+  if(playing && s !== prevState){ cheeses = []; spawnIn = 250; }
+  if(playing) prevState = s;
   if(playing && s === "live"){
     spawnIn -= dt*1000;
-    if(spawnIn <= 0){ spawnCheese(); spawnIn = spawnInterval(); }
+    if(spawnIn <= 0){ spawnCheese(false); spawnIn = spawnInterval(); }
     $("banner").classList.add("hidden");
+  } else if(playing && s === "nap"){
+    spawnIn -= dt*1000;
+    if(spawnIn <= 0){ spawnCheese(true); spawnIn = 850; }
+    const b = $("banner");
+    b.textContent = "💤 Dream Mode — he's napping. Practice cheese, no lives lost · Dream score " + dreamScore;
+    b.classList.remove("hidden");
   } else if(playing){
     const b = $("banner");
-    b.textContent = s === "nap" ? "💤 Squeektoshi is napping — cheese resumes when the wheel turns"
-                                : "⚠️ Live feed paused — waiting for the wheel…";
+    b.textContent = "⚠️ Live feed paused — waiting for the wheel…";
     b.classList.remove("hidden");
   }
   for(const c of cheeses){
     c.y += c.vy*dt;
     if(c.y >= PADDLE_Y-14 && c.y <= PADDLE_Y+22 && Math.abs(c.x - playerX) <= CATCH_HALF){
-      c.dead = true; caught++; combo++;
-      score += (c.golden ? 50 : 10) + Math.min(combo, 40);
+      c.dead = true;
+      if(c.dream){ dreamCaught++; dreamScore += c.golden ? 50 : 10; }
+      else { caught++; combo++; score += (c.golden ? 50 : 10) + Math.min(combo, 40); }
     } else if(c.y > H + 26){
-      c.dead = true; combo = 0; lives--;
+      c.dead = true;
+      if(!c.dream){ combo = 0; lives--; }
     }
   }
   cheeses = cheeses.filter(c => !c.dead);
@@ -280,6 +298,7 @@ function draw(){
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for(const c of cheeses){
     ctx.save();
+    if(c.dream) ctx.globalAlpha = 0.55;
     if(c.golden){ ctx.shadowColor = "#ffcf5c"; ctx.shadowBlur = 18; }
     ctx.font = (c.r*2) + "px serif";
     ctx.fillText("🧀", c.x, c.y);

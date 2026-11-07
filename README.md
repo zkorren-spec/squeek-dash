@@ -5,9 +5,13 @@ Squeek Dash is a community project for the Squeekchain Buildooooor badge.
 A small browser game powered by Squeektoshi's real wheel. Cheese only falls
 while the hamster is actually running: the game polls the public Squeekchain
 API (`https://api.squeekchain.com/v1/status`) and maps his live speed and RPM
-to the falling speed and spawn rate of the cheese. When he naps, the cheese
-stops and the game waits with him. No wallet, no tokens, no transactions —
-just you, a basket, and however fast a hamster feels like running.
+to the falling speed and spawn rate of the cheese. When he naps, the game
+switches to a clearly labelled Dream Mode — translucent practice cheese at a
+gentle fixed tempo, scored separately, no lives lost — because a sleeping
+hamster shouldn't mean a dead game; the dream never pretends to be his wheel,
+and the real score only ever comes from live running. No wallet, no tokens,
+no transactions — just you, a basket, and however fast a hamster feels like
+running.
 
 ## Play
 
